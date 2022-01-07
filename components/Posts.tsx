@@ -59,6 +59,11 @@ const CREATE_POST = gql`
     createPost(text: $text, picUrl: $picUrl)
   }
 `
+const DELETE_POST = gql`
+  mutation ($id: ID!) {
+    deletePost(id: $id)
+  }
+`
 
 const SINGLE_POST_COMMENTS = gql`
   query ($id: ID!) {
@@ -115,6 +120,16 @@ const Posts = ({ logedInUser, image, username }: pageProps) => {
       ],
     }
   )
+  const [deletePost, { loading: loadingDeletePost, error: deletePostError }] =
+    useMutation(DELETE_POST, {
+      awaitRefetchQueries: true,
+      refetchQueries: [
+        {
+          query: ALL_POSTS,
+        },
+      ],
+    })
+
   const [like_dislike_Post, { loading: likesLoading, error: likeserror }] =
     useMutation(LIKE_DISLIKE_POST, {
       awaitRefetchQueries: true,
@@ -167,6 +182,19 @@ const Posts = ({ logedInUser, image, username }: pageProps) => {
       toast.error(err?.message)
     }
   }
+  const handelDeletePost = async (id: string) => {
+    try {
+      // deletePost(id)
+      const { data } = await deletePost({ variables: { id: id } })
+      // console.log(data.deletePost)
+      toast.success(data.deletePost)
+    } catch (error) {
+      console.log(error)
+      //@ts-ignore
+      toast.error(error?.message)
+    }
+  }
+
   const fileHandler = (event: any) => {
     const reader = new FileReader()
     reader.onload = (onLoadEvent) => {
@@ -359,34 +387,48 @@ const Posts = ({ logedInUser, image, username }: pageProps) => {
             className='flex flex-col rounded-lg shadow-xl  mt-5'
           >
             <div className='flex-1 bg-white p-6 flex flex-col justify-between'>
-              <div className=' flex items-center'>
-                <div className='flex-shrink-0'>
-                  <a>
-                    <span className='sr-only'>{post.user.username}</span>
-                    <img
-                      className='h-10 w-10 rounded-full'
-                      src={post.user.profilePicUrl}
-                      alt=''
-                    />
-                  </a>
-                </div>
-                <div className='ml-3'>
-                  <p className='text-sm font-medium text-gray-900'>
-                    <a className='hover:underline'>{post.user.username}</a>
-                  </p>
-                  <div className='flex space-x-1 text-sm text-gray-500'>
-                    <span>
-                      <Moment
-                        format='DD MMM yyyy hh:mm A'
-                        date={post.createdAt / 1}
+              <div className='flex items-center w-full'>
+                <div className=' flex items-center w-full'>
+                  <div className='flex-shrink-0'>
+                    <a>
+                      <span className='sr-only'>{post.user.username}</span>
+                      <img
+                        className='h-10 w-10 rounded-full'
+                        src={post.user.profilePicUrl}
+                        alt=''
                       />
+                    </a>
+                  </div>
+                  <div className='ml-3'>
+                    <p className='text-sm font-medium text-gray-900'>
+                      <a className='hover:underline'>{post.user.username}</a>
+                    </p>
+                    <div className='flex space-x-1 text-sm text-gray-500'>
+                      <span>
+                        <Moment
+                          format='DD MMM yyyy hh:mm A'
+                          date={post.createdAt / 1}
+                        />
 
-                      {/* {console.log(
+                        {/* {console.log(
                         new Date(post.createdAt / 1).toLocaleDateString('en-US')
                       )} */}
-                    </span>
+                      </span>
+                    </div>
                   </div>
                 </div>
+                <button
+                  onClick={() => handelDeletePost(post?._id)}
+                  disabled={loadingDeletePost}
+                  className={` w-full flex justify-end ${
+                    post.user._id !== logedInUser ? 'hidden' : ''
+                  }  `}
+                >
+                  <Icon
+                    name='trash'
+                    className='text-red-600 hover:bg-red-100 !flex !justify-center !items-center rounded-full !h-8 !w-8 hover:cursor-pointer '
+                  />
+                </button>
               </div>
               <div className='flex-1 mt-3'>
                 <p className='subpixel-antialiased text-gray-700'>

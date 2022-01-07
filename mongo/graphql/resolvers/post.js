@@ -116,26 +116,29 @@ module.exports = {
     //   return updatedentry
     // },
     deletePost: async (_, { id }, { session }) => {
-      // if (!session) {
-      //   throw new Error('User is not logged in.')
-      // }
+      if (!session) {
+        throw new Error('User is not logged in.')
+      }
 
-      // const finduser = await Users.findById(session?.user?.id).exec()
-      // if (!finduser) {
-      //   throw new Error('Invalid User ID')
-      // }
+      const finduser = await Users.findById(session?.user?.id).exec()
+      if (!finduser) {
+        throw new Error('Invalid User ID')
+      }
       const post = await Post.findById(id)
       if (!post) {
         throw new Error('Post Does Not Exist')
       }
-      // if (post.user.toString() !== finduser._id) {
-      //   if (finduser.role === 'root') {
-      //     await post.deleteOne()
-      //     return 'Post Deleted'
-      //   } else {
-      //     return 'Unauthorized'
-      //   }
-      // }
+      // console.log(finduser._id)
+      // console.log('POST', post.user._id.toString())
+      // console.log(post.user._id.toString() !== finduser._id.toString())
+      if (post.user._id.toString() !== finduser._id.toString()) {
+        if (finduser.role === 'root') {
+          await post.deleteOne()
+          return 'Post Deleted'
+        } else {
+          return 'Unauthorized'
+        }
+      }
       await post.deleteOne()
       return 'Post Deleted'
 
