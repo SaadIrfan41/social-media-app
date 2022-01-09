@@ -64,6 +64,11 @@ const DELETE_POST = gql`
     deletePost(id: $id)
   }
 `
+const DELETE_COMMENT = gql`
+  mutation ($postId: ID!, $commentId: String!) {
+    deleteComment(postId: $postId, commentId: $commentId)
+  }
+`
 
 const SINGLE_POST_COMMENTS = gql`
   query ($id: ID!) {
@@ -74,6 +79,7 @@ const SINGLE_POST_COMMENTS = gql`
         date
         text
         user {
+          _id
           username
           profilePicUrl
         }
@@ -96,7 +102,12 @@ const Posts = ({ logedInUser, image, username }: pageProps) => {
 
   const [
     singlePostComments,
-    { loading: loadingComments, error: commentsError, data: commentsData },
+    {
+      loading: loadingComments,
+      error: commentsError,
+      data: commentsData,
+      refetch,
+    },
   ] = useLazyQuery(SINGLE_POST_COMMENTS)
 
   const [createComment, { loading: loadingComment, error: commentError }] =
@@ -129,6 +140,17 @@ const Posts = ({ logedInUser, image, username }: pageProps) => {
         },
       ],
     })
+  const [
+    deleteComment,
+    { loading: loadingDeleteComment, error: deleteCommentError },
+  ] = useMutation(DELETE_COMMENT, {
+    awaitRefetchQueries: true,
+    // refetchQueries: [
+    //   {
+    //     query: ALL_POSTS,
+    //   },
+    // ],
+  })
 
   const [like_dislike_Post, { loading: likesLoading, error: likeserror }] =
     useMutation(LIKE_DISLIKE_POST, {
@@ -188,6 +210,22 @@ const Posts = ({ logedInUser, image, username }: pageProps) => {
       const { data } = await deletePost({ variables: { id: id } })
       // console.log(data.deletePost)
       toast.success(data.deletePost)
+    } catch (error) {
+      console.log(error)
+      //@ts-ignore
+      toast.error(error?.message)
+    }
+  }
+  const handelDeleteComment = async (postId: string, commentId: string) => {
+    try {
+      // deletePost(id)
+      const { data } = await deleteComment({
+        variables: { postId: postId, commentId: commentId },
+      })
+      const res = await singlePostComments({ variables: { id: postId } })
+      // console.log(data.deletePost)
+      console.log('REFETCH', res)
+      toast.success(data.deleteComment)
     } catch (error) {
       console.log(error)
       //@ts-ignore
@@ -598,16 +636,37 @@ const Posts = ({ logedInUser, image, username }: pageProps) => {
                                     />
                                   </a>
                                   <div className='content'>
-                                    <div className='author'>
-                                      {comment.user.username}
-                                      <div className='metadata'>
-                                        <div>
-                                          <Moment
-                                            format='DD MMM yyyy hh:mm A'
-                                            date={comment.date / 1}
-                                          />
+                                    <div className='flex items-center '>
+                                      <div className='author w-full '>
+                                        {comment.user.username}
+                                        <div className='metadata'>
+                                          <div>
+                                            <Moment
+                                              format='DD MMM yyyy hh:mm A'
+                                              date={comment.date / 1}
+                                            />
+                                          </div>
                                         </div>
                                       </div>
+                                      <button
+                                        onClick={() =>
+                                          handelDeleteComment(
+                                            post?._id,
+                                            comment._id
+                                          )
+                                        }
+                                        disabled={loadingDeleteComment}
+                                        className={`  flex justify-end  ${
+                                          comment.user._id !== logedInUser
+                                            ? 'hidden'
+                                            : ''
+                                        }  `}
+                                      >
+                                        <Icon
+                                          name='erase'
+                                          className='text-red-600 hover:bg-red-100 !flex !justify-center !items-center rounded-full !h-8 !w-8 hover:cursor-pointer '
+                                        />
+                                      </button>
                                     </div>
 
                                     <div className='text'>{comment.text}</div>
@@ -643,27 +702,50 @@ const Posts = ({ logedInUser, image, username }: pageProps) => {
                           key={comment._id}
                           className='ui comments  pl-5 pr-5'
                         >
-                          <div className='comment'>
-                            <a className='avatar'>
-                              <img
-                                src={comment.user.profilePicUrl}
-                                alt='AVATAR'
-                              />
-                            </a>
-                            <div className='content'>
-                              <div className='author'>
-                                {comment.user.username}
-                                <div className='metadata'>
-                                  <div>
-                                    <Moment
-                                      format='DD MMM yyyy hh:mm A'
-                                      date={comment.date / 1}
-                                    />
+                          <div className='flex items-center '>
+                            <div className='comment w-full'>
+                              <a className='avatar'>
+                                <img
+                                  src={comment.user.profilePicUrl}
+                                  alt='AVATAR'
+                                />
+                              </a>
+                              <div className='content'>
+                                <div className='flex items-center '>
+                                  <div className='author w-full'>
+                                    {comment.user.username}
+                                    <div className='metadata'>
+                                      <div>
+                                        <Moment
+                                          format='DD MMM yyyy hh:mm A'
+                                          date={comment.date / 1}
+                                        />
+                                      </div>
+                                    </div>
                                   </div>
+                                  <button
+                                    onClick={() =>
+                                      handelDeleteComment(
+                                        post?._id,
+                                        comment._id
+                                      )
+                                    }
+                                    disabled={loadingDeleteComment}
+                                    className={` w-full flex justify-end  ${
+                                      comment.user._id !== logedInUser
+                                        ? 'hidden'
+                                        : ''
+                                    }  `}
+                                  >
+                                    <Icon
+                                      name='erase'
+                                      className='text-red-600 hover:bg-red-100 !flex !justify-center !items-center rounded-full !h-8 !w-8 hover:cursor-pointer '
+                                    />
+                                  </button>
                                 </div>
-                              </div>
 
-                              <div className='text'>{comment.text}</div>
+                                <div className='text'>{comment.text}</div>
+                              </div>
                             </div>
                           </div>
                         </div>

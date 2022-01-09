@@ -218,14 +218,14 @@ module.exports = {
     },
 
     deleteComment: async (_, { postId, commentId }, { session }) => {
-      // if (!session) {
-      //   throw new Error('User is not logged in.')
-      // }
+      if (!session) {
+        throw new Error('User is not logged in.')
+      }
 
-      // const finduser = await Users.findById(session?.user?.id).exec()
-      // if (!finduser) {
-      //   throw new Error('Invalid User ID')
-      // }
+      const finduser = await Users.findById(session?.user?.id).exec()
+      if (!finduser) {
+        throw new Error('Invalid User ID')
+      }
       const post = await Post.findById(postId)
       if (!post) {
         throw new Error('Post Does Not Exist')
@@ -238,20 +238,20 @@ module.exports = {
       }
       // console.log('COMMENT', foundComment)
 
-      // if (foundComment.user.toString() !== finduser._id) {
-      //   if (finduser.role === 'root') {
-      //     await Post.findByIdAndUpdate(postId, {
-      //   $pull: {
-      //     comments: {
-      //       _id: commentId,
-      //     },
-      //   },
-      // }).exec()
-      //     return 'Comment Deleted'
-      //   } else {
-      //     return 'Unauthorized'
-      //   }
-      // }
+      if (foundComment.user.toString() !== finduser._id.toString()) {
+        if (finduser.role === 'root') {
+          await Post.findByIdAndUpdate(postId, {
+            $pull: {
+              comments: {
+                _id: commentId,
+              },
+            },
+          }).exec()
+          return 'Comment Deleted'
+        } else {
+          return 'Unauthorized'
+        }
+      }
       await Post.findByIdAndUpdate(postId, {
         $pull: {
           comments: {
