@@ -1,76 +1,71 @@
 /* eslint-disable @next/next/no-img-element */
 import { gql, useLazyQuery, useMutation, useQuery } from '@apollo/client'
-import { Field, Form, Formik } from 'formik'
+import { Form, Formik } from 'formik'
 import * as yup from 'yup'
 import TextareaAutosize from 'react-textarea-autosize'
 import {
   PhotographIcon,
   VideoCameraIcon,
   EmojiHappyIcon,
-  ThumbUpIcon,
-  ChatAltIcon,
 } from '@heroicons/react/outline'
-import { useSession } from 'next-auth/react'
-import { useEffect, useRef, useState } from 'react'
-import Moment from 'react-moment'
+
+import { useEffect, useState } from 'react'
+
 import { toast } from 'react-toastify'
-import { Button, Icon, Modal, Image, Popup, Loader } from 'semantic-ui-react'
-// import Image from 'next/image'
-import LikeSVG from '../utils/like'
-const ALL_POSTS = gql`
-  query {
-    allPosts {
-      _id
-      picUrl
-      createdAt
-      comments {
-        _id
+import { Icon, Modal, Image } from 'semantic-ui-react'
+
+import InfiniteScroll from 'react-infinite-scroll-component'
+import PostUserData from './PostUserData'
+import DeletePostButton from './DeletePostButton'
+import Comment_Like_Section from './Comment_Like_Section'
+import EventEmitter from 'events'
+
+export const ALL_POSTS = gql`
+  query ($page: Int, $limit: Int) {
+    allPaginatedPosts(page: $page, limit: $limit) {
+      paginator {
+        totalPages
+        totalPosts
+        hasNextPage
+        hasPrevPage
+        next
+        perPage
+        prev
       }
-      likes {
+      posts {
         _id
-        user {
+        picUrl
+        createdAt
+        comments {
           _id
+        }
+        likes {
+          _id
+          user {
+            _id
+            username
+            profilePicUrl
+          }
+        }
+        text
+        user {
           username
           profilePicUrl
+          email
+          _id
         }
-      }
-      text
-      user {
-        username
-        profilePicUrl
-        email
-        _id
       }
     }
   }
 `
-const LIKE_DISLIKE_POST = gql`
-  mutation ($PostId: ID!) {
-    like_dislike_Post(id: $PostId)
-  }
-`
-const CREATE_COMMENT = gql`
-  mutation ($id: ID!, $text: String!) {
-    createComment(id: $id, text: $text)
-  }
-`
+
 const CREATE_POST = gql`
   mutation ($text: String!, $picUrl: String) {
     createPost(text: $text, picUrl: $picUrl)
   }
 `
-const DELETE_POST = gql`
-  mutation ($id: ID!) {
-    deletePost(id: $id)
-  }
-`
-const DELETE_COMMENT = gql`
-  mutation ($postId: ID!, $commentId: String!) {
-    deleteComment(postId: $postId, commentId: $commentId)
-  }
-`
 
-const SINGLE_POST_COMMENTS = gql`
+export const SINGLE_POST_COMMENTS = gql`
   query ($id: ID!) {
     singlePostComments(id: $id) {
       _id
@@ -94,32 +89,14 @@ type pageProps = {
 }
 
 const Posts = ({ logedInUser, image, username }: pageProps) => {
+  // const { inView, entry, ref } = useInView()
+  // const [pageNumber, setpageNumber] = useState(1)
   console.log('User', logedInUser)
   const [postModel, setpostModel] = useState(false)
   const [commentsModel, setcommentsModel] = useState(false)
-  const [postComment, setpostComment] = useState('')
+  // const [postComment, setpostComment] = useState('')
   const [file, setfile] = useState(null)
 
-  const [
-    singlePostComments,
-    {
-      loading: loadingComments,
-      error: commentsError,
-      data: commentsData,
-      refetch,
-    },
-  ] = useLazyQuery(SINGLE_POST_COMMENTS)
-
-  const [createComment, { loading: loadingComment, error: commentError }] =
-    useMutation(CREATE_COMMENT, {
-      awaitRefetchQueries: true,
-      refetchQueries: [
-        {
-          query: SINGLE_POST_COMMENTS,
-          variables: { id: commentsData?.singlePostComments?._id },
-        },
-      ],
-    })
   const [createPost, { loading: loadingPost, error: postError }] = useMutation(
     CREATE_POST,
     {
@@ -131,39 +108,13 @@ const Posts = ({ logedInUser, image, username }: pageProps) => {
       ],
     }
   )
-  const [deletePost, { loading: loadingDeletePost, error: deletePostError }] =
-    useMutation(DELETE_POST, {
-      awaitRefetchQueries: true,
-      refetchQueries: [
-        {
-          query: ALL_POSTS,
-        },
-      ],
-    })
-  const [
-    deleteComment,
-    { loading: loadingDeleteComment, error: deleteCommentError },
-  ] = useMutation(DELETE_COMMENT, {
-    awaitRefetchQueries: true,
-    // refetchQueries: [
-    //   {
-    //     query: ALL_POSTS,
-    //   },
-    // ],
+
+  const { data, loading, error, fetchMore, refetch } = useQuery(ALL_POSTS, {
+    // notifyOnNetworkStatusChange: true,
   })
-
-  const [like_dislike_Post, { loading: likesLoading, error: likeserror }] =
-    useMutation(LIKE_DISLIKE_POST, {
-      awaitRefetchQueries: true,
-      refetchQueries: [
-        {
-          query: ALL_POSTS,
-          // variables: { getDiaryId: data?.getEntry?.diaryid?.id },
-        },
-      ],
-    })
-
-  const { data, loading, error } = useQuery(ALL_POSTS)
+  useEffect(() => {
+    refetch()
+  }, [refetch])
   if (loading)
     return (
       <div className=' w-full max-w-2xl mx-auto mt-4 flex justify-center'>
@@ -171,67 +122,16 @@ const Posts = ({ logedInUser, image, username }: pageProps) => {
       </div>
     )
   if (error) return <h1>Error</h1>
-  console.log(data)
-  console.log('Comments', commentsData)
+  console.log('ALL POSTS', data)
 
-  const handellike_dislike = async (PostId: any) => {
-    try {
-      const { data } = await like_dislike_Post({
-        variables: { PostId },
-      })
-      console.log(data)
+  const emitter = new EventEmitter()
+  emitter.setMaxListeners(100)
+  // or 0 to turn off the limit
+  // emitter.setMaxListeners(0)
 
-      toast.success(data.like_dislike_Post)
-      //  router.push(`/diary/${rtkdata?.getEntry?.diaryid?.id}`)
-    } catch (err) {
-      // console.log(err)
-      //@ts-ignore
-      toast.error(err?.message)
-    }
-  }
-  const validationSchema = yup.object().shape({
-    comment: yup.string().required('Email is required'),
-  })
   const validationPostSchema = yup.object().shape({
     text: yup.string().required('Text Field is Empty'),
   })
-  const handelCommentClick = async (id: string) => {
-    try {
-      setpostComment(id)
-      await singlePostComments({ variables: { id: id } })
-    } catch (error) {
-      //@ts-ignore
-      toast.error(err?.message)
-    }
-  }
-  const handelDeletePost = async (id: string) => {
-    try {
-      // deletePost(id)
-      const { data } = await deletePost({ variables: { id: id } })
-      // console.log(data.deletePost)
-      toast.success(data.deletePost)
-    } catch (error) {
-      console.log(error)
-      //@ts-ignore
-      toast.error(error?.message)
-    }
-  }
-  const handelDeleteComment = async (postId: string, commentId: string) => {
-    try {
-      // deletePost(id)
-      const { data } = await deleteComment({
-        variables: { postId: postId, commentId: commentId },
-      })
-      const res = await singlePostComments({ variables: { id: postId } })
-      // console.log(data.deletePost)
-      console.log('REFETCH', res)
-      toast.success(data.deleteComment)
-    } catch (error) {
-      console.log(error)
-      //@ts-ignore
-      toast.error(error?.message)
-    }
-  }
 
   const fileHandler = (event: any) => {
     const reader = new FileReader()
@@ -241,8 +141,19 @@ const Posts = ({ logedInUser, image, username }: pageProps) => {
     }
     reader.readAsDataURL(event?.target?.files[0])
   }
+
+  const renderPosts = async () => {
+    try {
+      await fetchMore({
+        variables: { page: data?.allPaginatedPosts?.paginator?.next },
+      })
+    } catch (err) {
+      console.log(err)
+    }
+  }
+
   return (
-    <div className='w-full max-w-2xl mx-auto mt-4'>
+    <div className='w-full max-w-2xl mx-auto  mt-4'>
       <div className='p-4 md:p-6 shadow-md bg-white rounded-lg'>
         <div className='flex items-center space-x-4'>
           <div className='flex-shrink-0'>
@@ -419,421 +330,65 @@ const Posts = ({ logedInUser, image, username }: pageProps) => {
         </div>
       </div>
       <div className='mt-5 mb-5'>
-        {data?.allPosts?.map((post: any) => (
-          <div
-            key={post._id}
-            className='flex flex-col rounded-lg shadow-xl  mt-5'
-          >
-            <div className='flex-1 bg-white p-6 flex flex-col justify-between'>
-              <div className='flex items-center w-full'>
-                <div className=' flex items-center w-full'>
-                  <div className='flex-shrink-0'>
-                    <a>
-                      <span className='sr-only'>{post.user.username}</span>
-                      <img
-                        className='h-10 w-10 rounded-full'
-                        src={post.user.profilePicUrl}
-                        alt=''
-                      />
-                    </a>
-                  </div>
-                  <div className='ml-3'>
-                    <p className='text-sm font-medium text-gray-900'>
-                      <a className='hover:underline'>{post.user.username}</a>
-                    </p>
-                    <div className='flex space-x-1 text-sm text-gray-500'>
-                      <span>
-                        <Moment
-                          format='DD MMM yyyy hh:mm A'
-                          date={post.createdAt / 1}
-                        />
-
-                        {/* {console.log(
-                        new Date(post.createdAt / 1).toLocaleDateString('en-US')
-                      )} */}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => handelDeletePost(post?._id)}
-                  disabled={loadingDeletePost}
-                  className={` w-full flex justify-end ${
-                    post.user._id !== logedInUser ? 'hidden' : ''
-                  }  `}
-                >
-                  <Icon
-                    name='trash'
-                    className='text-red-600 hover:bg-red-100 !flex !justify-center !items-center rounded-full !h-8 !w-8 hover:cursor-pointer '
+        <InfiniteScroll
+          dataLength={data?.allPaginatedPosts?.posts?.length}
+          next={renderPosts}
+          hasMore={data?.allPaginatedPosts?.paginator?.hasNextPage}
+          loader={<h3> Loading...</h3>}
+          endMessage={<h4>Nothing more to show</h4>}
+        >
+          {data?.allPaginatedPosts?.posts?.map((post: any) => (
+            <div
+              key={post._id}
+              className='flex flex-col rounded-lg shadow-md  mt-5'
+            >
+              <div className='flex-1 bg-white p-6 flex flex-col justify-between'>
+                <div className='flex items-center w-full'>
+                  <PostUserData
+                    username={post.user.username}
+                    userImage={post.user.profilePicUrl}
+                    createdAt={post.createdAt}
+                    userId={post.user._id}
                   />
-                </button>
-              </div>
-              <div className='flex-1 mt-3'>
-                <p className='subpixel-antialiased text-gray-700'>
-                  {post.text}
-                </p>
-              </div>
-            </div>
-            <div className='flex-shrink-0'>
-              <img
-                className='h-full w-11/12 object-cover mx-auto'
-                src={post.picUrl}
-                alt=''
-              />
-            </div>
-            <div className='mb-1'>
-              <div className='flex justify-evenly p-1 '>
-                <div className='flex justify-start w-full pl-10'>
-                  <Popup
-                    className='opacity-95'
-                    on='click'
-                    content={post?.likes?.map((like: any) => {
-                      return (
-                        <div
-                          key={like?._id}
-                          className='flex-shrink-0 flex items-center hover:cursor-pointer hover:underline hover:bg-gray-200 rounded-lg pl-2 pr-2 '
-                        >
-                          <img
-                            className='h-10 w-10 rounded-full'
-                            src={like?.user?.profilePicUrl}
-                            alt=''
-                          />
-                          <span className='pl-3'>{like?.user?.username}</span>
-                        </div>
-                      )
-                    })}
-                    trigger={
-                      <LikeSVG className='h-6 w-6  hover:cursor-pointer' />
-                    }
+                  <DeletePostButton
+                    postId={post?._id}
+                    postUserId={post.user._id}
+                    logedInUser={logedInUser}
                   />
-                  <span className='pl-2'> {post.likes.length}</span>
-                  {/* {post.likes.length > 1
-                    ? `${post.likes.length} Likes`
-                    : `${post.likes.length} Like`} */}
                 </div>
-                <div className='flex  w-full justify-end text-gray-700 '>
-                  <button
-                    onClick={() => handelCommentClick(post?._id)}
-                    className='pr-10  hover:underline hover:cursor-pointer'
-                  >
-                    {post.comments.length}{' '}
-                    {post.comments.length > 1 ? 'Comments' : 'Comment'}
-                  </button>
+                <div className='flex-1 mt-3'>
+                  <p className='subpixel-antialiased text-gray-700'>
+                    {post.text}
+                  </p>
                 </div>
               </div>
-              <hr className='mt-1 mb-1 max-w-xl mx-auto' />
-
-              <div className='flex justify-evenly'>
-                <button
-                  disabled={likesLoading}
-                  onClick={() => handellike_dislike(post?._id)}
-                  className='flex items-center     hover:cursor-pointer '
-                >
-                  {post?.likes?.find(
-                    (like: any) => like.user._id === logedInUser
-                  ) ? (
-                    <div className='flex items-center  hover:bg-blue-100 rounded-lg p-1'>
-                      <ThumbUpIcon
-                        className='flex-shrink-0 h-10 w-10 text-blue-200  '
-                        fill={'#3b8cf6'}
-                      />
-                      <span className='text-blue-500 font-bold'>UnLike</span>
-                    </div>
-                  ) : (
-                    <div className='text-gray-500 flex items-center font-bold hover:bg-gray-100 rounded-lg p-1'>
-                      <ThumbUpIcon
-                        className='flex-shrink-0 h-10 w-10   '
-                        fill={'#ffffff'}
-                      />
-                      <span className='text-blue-500 font-bold'>Like</span>
-
-                      {/* {post.likes.length > 1
-                        ? `${post.likes.length} Likes`
-                        : `${post.likes.length} Like`} */}
-                    </div>
-                  )}
-                </button>
-                <button
-                  // id={post?._id}
-                  // disabled={commentsData}
-                  onClick={() => handelCommentClick(post?._id)}
-                  className='flex font-bold items-center rounded-lg hover:cursor-pointer text-indigo-500 hover:bg-indigo-100 p-1'
-                >
-                  <ChatAltIcon className='flex-shrink-0 h-10 w-10  ' />
-                  Comment
-                </button>
+              <div className='flex-shrink-0'>
+                <img
+                  className='h-full w-11/12 object-cover mx-auto'
+                  src={post.picUrl}
+                  alt=''
+                />
               </div>
-              <hr className='mt-1 mb-1 max-w-xl mx-auto' />
-              {post?._id === postComment &&
-              commentsData &&
-              post?.comments?.length > 3 ? (
+              <div className='mb-1'>
+                <hr className='mt-1 mb-1 max-w-xl mx-auto' />
+
                 <>
-                  <Modal
-                    closeIcon
-                    dimmer='blurring'
-                    open={commentsModel}
-                    onClose={() => setcommentsModel(false)}
-                    onOpen={() => setcommentsModel(true)}
-                    trigger={
-                      <button className='w-full text-right pr-12 font-bold hover:underline text-gray-600'>
-                        View More Comments
-                      </button>
-                    }
-                  >
-                    {/* <Modal.Header>Profile Picture</Modal.Header> */}
-                    <Modal.Content image scrolling>
-                      <Image size='large' src={post?.picUrl} fluid />
-
-                      <Modal.Description className='!w-screen'>
-                        <div className='flex-1 bg-white p-6 flex flex-col justify-between'>
-                          <div className=' flex items-center'>
-                            <div className='flex-shrink-0'>
-                              <a>
-                                <span className='sr-only'>
-                                  {post.user.username}
-                                </span>
-                                <img
-                                  className='h-10 w-10 rounded-full'
-                                  src={post.user.profilePicUrl}
-                                  alt=''
-                                />
-                              </a>
-                            </div>
-                            <div className='ml-3'>
-                              <p className='text-sm font-medium text-gray-900'>
-                                <a className='hover:underline'>
-                                  {post.user.username}
-                                </a>
-                              </p>
-                              <div className='flex space-x-1 text-sm text-gray-500'>
-                                <span>
-                                  <Moment
-                                    format='DD MMM yyyy hh:mm A'
-                                    date={post.createdAt / 1}
-                                  />
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className='flex-1 mt-3'>
-                            <p className='subpixel-antialiased text-gray-700'>
-                              {post.text}
-                            </p>
-                          </div>
-                        </div>
-                        <div className='max-h-80 overflow-auto'>
-                          {commentsData?.singlePostComments?.comments?.map(
-                            (comment: any, index: number) => (
-                              <div
-                                key={comment._id}
-                                className='ui comments  pl-5 pr-5 '
-                              >
-                                <div className='comment'>
-                                  <a className='avatar'>
-                                    <img
-                                      src={comment.user.profilePicUrl}
-                                      alt='AVATAR'
-                                    />
-                                  </a>
-                                  <div className='content'>
-                                    <div className='flex items-center '>
-                                      <div className='author w-full '>
-                                        {comment.user.username}
-                                        <div className='metadata'>
-                                          <div>
-                                            <Moment
-                                              format='DD MMM yyyy hh:mm A'
-                                              date={comment.date / 1}
-                                            />
-                                          </div>
-                                        </div>
-                                      </div>
-                                      <button
-                                        onClick={() =>
-                                          handelDeleteComment(
-                                            post?._id,
-                                            comment._id
-                                          )
-                                        }
-                                        disabled={loadingDeleteComment}
-                                        className={`  flex justify-end  ${
-                                          comment.user._id !== logedInUser
-                                            ? 'hidden'
-                                            : ''
-                                        }  `}
-                                      >
-                                        <Icon
-                                          name='erase'
-                                          className='text-red-600 hover:bg-red-100 !flex !justify-center !items-center rounded-full !h-8 !w-8 hover:cursor-pointer '
-                                        />
-                                      </button>
-                                    </div>
-
-                                    <div className='text'>{comment.text}</div>
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          )}
-                        </div>
-                      </Modal.Description>
-                    </Modal.Content>
-                    {/* <Modal.Actions>
-                      <Button onClick={() => setcommentsModel(false)} primary>
-                        Proceed <Icon name='chevron right' />
-                      </Button>
-                    </Modal.Actions> */}
-                  </Modal>
+                  <Comment_Like_Section
+                    postImage={post?.picUrl}
+                    postUser={post?.user?.username}
+                    createdAt={post?.createdAt}
+                    postText={post?.text}
+                    postId={post?._id}
+                    logedInUser={logedInUser}
+                    userImage={post.user.profilePicUrl}
+                    postCommentLength={post?.comments?.length}
+                    postLiked={post?.likes}
+                  />
                 </>
-              ) : (
-                ''
-              )}
-              {loadingComments
-                ? post?._id === postComment && (
-                    <div className=' w-full max-w-2xl mx-auto mt-4 flex justify-center'>
-                      <div className='animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-purple-500'></div>
-                    </div>
-                  )
-                : post?._id === postComment &&
-                  commentsData?.singlePostComments?.comments?.map(
-                    (comment: any, index: number) =>
-                      index < 3 && (
-                        <div
-                          key={comment._id}
-                          className='ui comments  pl-5 pr-5'
-                        >
-                          <div className='flex items-center '>
-                            <div className='comment w-full'>
-                              <a className='avatar'>
-                                <img
-                                  src={comment.user.profilePicUrl}
-                                  alt='AVATAR'
-                                />
-                              </a>
-                              <div className='content'>
-                                <div className='flex items-center '>
-                                  <div className='author w-full'>
-                                    {comment.user.username}
-                                    <div className='metadata'>
-                                      <div>
-                                        <Moment
-                                          format='DD MMM yyyy hh:mm A'
-                                          date={comment.date / 1}
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <button
-                                    onClick={() =>
-                                      handelDeleteComment(
-                                        post?._id,
-                                        comment._id
-                                      )
-                                    }
-                                    disabled={loadingDeleteComment}
-                                    className={` w-full flex justify-end  ${
-                                      comment.user._id !== logedInUser
-                                        ? 'hidden'
-                                        : ''
-                                    }  `}
-                                  >
-                                    <Icon
-                                      name='erase'
-                                      className='text-red-600 hover:bg-red-100 !flex !justify-center !items-center rounded-full !h-8 !w-8 hover:cursor-pointer '
-                                    />
-                                  </button>
-                                </div>
-
-                                <div className='text'>{comment.text}</div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                  )}
-              {/* </>
-              )} */}
-              {post?._id === commentsData?.singlePostComments?._id && (
-                <div className='pb-5 pr-5 pl-5 flex max-w-2xl mx-auto'>
-                  <div className='flex-shrink-0'>
-                    <img
-                      src={image}
-                      alt='Harsh mangalam`s profile image'
-                      className='w-10 h-10 rounded-full'
-                    />
-                  </div>
-                  <Formik
-                    initialValues={{
-                      comment: '',
-                    }}
-                    validationSchema={validationSchema}
-                    onSubmit={async (values, { resetForm }) => {
-                      console.log(values)
-
-                      // createComment
-                      // console.log();
-
-                      try {
-                        const { data } = await createComment({
-                          variables: { id: post?._id, text: values.comment },
-                        })
-                        console.log(data)
-                        toast.success(data?.createComment)
-
-                        resetForm({})
-                      } catch (error) {
-                        console.log(error)
-                        //@ts-ignore
-                        toast.error(error?.message)
-                      }
-                    }}
-                  >
-                    {({
-                      handleChange,
-
-                      handleBlur,
-
-                      handleSubmit,
-
-                      isSubmitting,
-                      isValid,
-                    }) => (
-                      <div className='w-screen max-w-4xl mx-auto '>
-                        <Form onSubmit={handleSubmit}>
-                          <div>
-                            <div className='mt-1 relative'>
-                              <Field
-                                component='textarea'
-                                // type='text'
-                                placeholder='Add your comment...'
-                                className='border-gray-400 border-b outline-none pl-4 w-11/12    resize-none '
-                                onChange={handleChange}
-                                // value={text}
-                                // onChange={(e) => settext(e.target.value)}
-                                onBlur={handleBlur}
-                                id='comment'
-                                name='comment'
-                              />
-                              <div className=' flex justify-center text-center absolute  inset-y-0 right-0 bg-indigo-100 w-8 h-8 rounded-full'>
-                                <button
-                                  type='submit'
-                                  disabled={isSubmitting || !isValid}
-                                  className='text-indigo-500 disabled:text-gray-500  '
-                                >
-                                  <i className='send icon'></i>
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </Form>
-                      </div>
-                    )}
-                  </Formik>
-                </div>
-              )}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </InfiniteScroll>
       </div>
     </div>
   )

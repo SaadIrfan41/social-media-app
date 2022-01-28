@@ -25,11 +25,11 @@ const Home = ({ userid, profilePic, username, expires }: pageProps) => {
 
       <div className='h-screen flex '>
         {/* SIDE BAR */}
-        <Sidebar />
+        {/* <Sidebar username={username} /> */}
         {/* Post AREA */}
         <Posts logedInUser={userid} image={profilePic} username={username} />
         {/* Friends List */}
-        <div>FRIENDS LIST</div>
+        {/* <div>FRIENDS LIST</div> */}
       </div>
     </div>
   )

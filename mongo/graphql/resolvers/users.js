@@ -1,5 +1,3 @@
-// const shortid = require('shortid')
-import { getSession } from 'next-auth/react'
 import User from '../../models/user'
 
 module.exports = {

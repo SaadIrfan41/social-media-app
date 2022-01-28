@@ -3,6 +3,7 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 const FormData = require('form-data')
 import connectDB from '../../../mongo/config'
 import User from '../../../mongo/models/user'
+import Profile from '../../../mongo/models/profile'
 import Follower from '../../../mongo/models/follower'
 import bcrypt from 'bcrypt'
 import isEmail from 'validator/lib/isEmail'
@@ -67,7 +68,7 @@ export default NextAuth({
   pages: {
     signIn: '/login',
     error: '/login',
-    signOut: '/',
+    signOut: '/login',
   },
   // SQL or MongoDB database (or leave empty)
   //   database: process.env.DATABASE_URL,
@@ -174,32 +175,53 @@ const registerUser = async (
   }
 
   const hashPass = await bcrypt.hash(password, 12)
+  // console.log('IMAGE', image)
+  // if (image) {
+  //   console.log('IMAGE IS NOT NULL')
+  // }
+  if (image !== '') {
+    console.log('IMGAE IS NULL')
+    const formData = new FormData()
 
-  const formData = new FormData()
+    formData.append('file', image)
 
-  formData.append('file', image)
-
-  formData.append('upload_preset', 'social_media_app')
-  const data = await fetch(
-    `https://api.cloudinary.com/v1_1/${CLOUDINARY_NAME}/image/upload`,
-    {
-      method: 'POST',
-      body: formData,
+    formData.append('upload_preset', 'social_media_app')
+    const data = await fetch(
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_NAME}/image/upload`,
+      {
+        method: 'POST',
+        body: formData,
+      }
+    ).then((r) => r.json())
+    if (!data.secure_url) {
+      throw new Error('Image Upload Failed!')
     }
-  ).then((r) => r.json())
-  if (!data.secure_url) {
-    throw new Error('Image Upload Failed!')
+    const newUser = await new User({
+      email,
+      password: hashPass,
+      username,
+      name,
+      profilePicUrl: data?.secure_url,
+    })
+    await newUser.save()
+    console.log('USER', newUser)
+    await new Follower({
+      user: newUser.id,
+      followers: [],
+      following: [],
+    }).save()
+    await new Profile({ user: newUser.id }).save()
+    return newUser
   }
-
   const newUser = await new User({
     email,
     password: hashPass,
     username,
     name,
-    profilePicUrl: data?.secure_url,
   })
   await newUser.save()
   console.log('USER', newUser)
   await new Follower({ user: newUser.id, followers: [], following: [] }).save()
+  await new Profile({ user: newUser.id }).save()
   return newUser
 }

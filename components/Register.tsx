@@ -7,7 +7,7 @@ import { getSession, signIn, SignInResponse } from 'next-auth/react'
 import { useState } from 'react'
 import Image from 'next/image'
 const Register = () => {
-  const [file, setfile] = useState(null)
+  const [file, setfile] = useState('')
 
   const fileHandler = (event: any) => {
     const reader = new FileReader()
@@ -101,7 +101,7 @@ const Register = () => {
                 </div>
                 <div className='flex w-full  items-center justify-center'>
                   <button
-                    onClick={() => setfile(null)}
+                    onClick={() => setfile('')}
                     className='inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-500 ease-in-out'
                   >
                     Clear

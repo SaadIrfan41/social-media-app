@@ -24,7 +24,26 @@ const typeDefs = gql`
     comments: [Comments!]
     createdAt: String!
   }
+  type PaginatedPosts {
+    posts: [Post!]!
+    paginator: Paginator!
+  }
+  type Paginator {
+    slNo: Int
+    prev: Int
+    next: Int
+    perPage: Int
+    totalPosts: Int
+    totalPages: Int
+    currentPage: Int
+    hasPrevPage: Boolean
+    hasNextPage: Boolean
+  }
   type Likes {
+    _id: ID!
+    user: User!
+  }
+  type Follow {
     _id: ID!
     user: User!
   }
@@ -34,11 +53,25 @@ const typeDefs = gql`
     date: String!
     user: User!
   }
+  type Profile {
+    profile: User!
+    followers: Int!
+    following: Int!
+  }
+  type Followers {
+    user: User
+    followers: [Follow]
+    following: [Follow]
+  }
   type Query {
     allUsers: [User!]
+    userProfile(username: String): Profile!
+    userPost(id: ID!): [Post!]
+    userFollowStats(id: ID!): Followers!
     filterUsers(name: String!): [User!]
     currentuser(id: ID!): User!
     allPosts: [Post!]
+    allPaginatedPosts(page: Int, limit: Int): PaginatedPosts!
     postById(id: ID!): Post!
     singlePostComments(id: ID!): Post!
     alllikes(id: ID!): [Likes!]
@@ -54,6 +87,9 @@ const typeDefs = gql`
     like_dislike_Post(id: ID!): String
     createComment(id: ID!, text: String!): String
     deleteComment(postId: ID!, commentId: String!): String
+
+    #Follower
+    followUser(userToFollowId: ID!): String
   }
 `
 

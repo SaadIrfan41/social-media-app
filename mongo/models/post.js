@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const mongoosePaginate = require('mongoose-paginate-v2')
 const Schema = mongoose.Schema
 
 const PostSchema = new Schema(
@@ -24,6 +25,7 @@ const PostSchema = new Schema(
   },
   { timestamps: true }
 )
+PostSchema.plugin(mongoosePaginate)
 
 let Dataset = mongoose.models.Post || mongoose.model('Post', PostSchema)
 export default Dataset
